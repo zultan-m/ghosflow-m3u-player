@@ -21,3 +21,9 @@
 ## Sumber
 - Shaka Player documentation: https://shaka-player.github.io/shaka-player/docs/api/tutorial-basic-usage.html
 - Shaka Player releases: https://github.com/shaka-project/shaka-player/releases
+
+
+## Kemas kini versi DASH / cache
+- Versi ini menaikkan cache Service Worker kepada `ghosflow-player-v2` supaya browser menggantikan fail HTML lama yang mungkin masih tersimpan.
+- Selepas upload semua fail ke root repository dan commit, buka laman semula. Jika masih versi lama, Chrome DevTools > Application > Service Workers > Unregister, kemudian Storage > Clear site data, dan reload laman.
+- Sokongan DASH tidak automatik membuka kandungan yang dilindungi DRM; ia memerlukan konfigurasi lesen/kunci yang dibenarkan oleh penyedia.
