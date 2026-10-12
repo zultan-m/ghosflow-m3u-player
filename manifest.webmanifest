@@ -1,0 +1,10 @@
+{
+  "name": "Ghosflow M3U Player",
+  "short_name": "Ghosflow",
+  "description": "Web player untuk playlist M3U/M3U8 dan EPG XMLTV",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "orientation": "any"
+}
