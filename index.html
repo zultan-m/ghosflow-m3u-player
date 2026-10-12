@@ -7,24 +7,146 @@
 @media(max-width:850px){.wrap{padding:12px}.layout{grid-template-columns:1fr}.channels{max-height:400px}.top{align-items:flex-start}.status{max-width:120px}.toolbar{grid-template-columns:1fr 120px}}@media(max-width:430px){.brand p{max-width:190px}.player-controls button{flex:1}.inline{flex-direction:column}.toolbar{grid-template-columns:1fr}.now{align-items:flex-start}}
 </style></head><body><div class="wrap">
 <header class="top"><div class="brand"><div class="logo">G</div><div><h1>Ghosflow <span style="color:var(--accent)">Player</span></h1><p>M3U / HLS / DASH · Favorites · EPG · Fullscreen</p></div></div><div class="status" id="status">Belum ada playlist</div></header>
-<main class="layout"><section class="panel"><div class="playerbox"><div class="screen" id="screen"><video id="video" controls playsinline preload="metadata"></video><div class="empty" id="placeholder"><div><strong>Ready to stream?</strong>Masukkan URL playlist M3U di panel kanan, kemudian tekan Load playlist.</div></div></div><div class="now"><div><h2 id="nowTitle">Tiada channel dipilih</h2><p id="nowSub">Pilih channel daripada senarai untuk mula menonton.</p></div><span class="tag" id="streamTag">GHOSFLOW</span></div><div class="player-controls"><button id="playBtn" class="primary">▶ Play / Resume</button><button id="fullBtn">⛶ Fullscreen</button><button id="stopBtn">■ Stop</button></div></div>
+<main class="layout"><section class="panel"><div class="playerbox"><div class="screen" id="screen"><video id="video" controls playsinline preload="metadata"></video><div class="empty" id="placeholder"><div><strong>Ready to stream?</strong>Masukkan URL playlist M3U di panel kanan, kemudian tekan Load playlist.</div></div></div><div class="now"><div><h2 id="nowTitle">Tiada channel dipilih</h2><p id="nowSub">Pilih channel daripada senarai untuk mula menonton.</p></div><span class="tag" id="streamTag">GHOSFLOW</span></div><div class="player-controls"><button id="playBtn" class="primary">▶ Play / Resume</button><button id="fullBtn">⛶ Fullscreen</button><button id="stopBtn">■ Stop</button></div><p id="playbackInfo" class="hint" role="status" aria-live="polite">Butiran playback akan dipaparkan di sini.</p></div>
 <div class="epg"><h3>Jadual rancangan (EPG)</h3><div id="epgContent" class="small">Muatkan URL XMLTV EPG untuk melihat jadual rancangan. EPG bergantung pada padanan channel ID.</div></div></section>
 <aside><section class="panel config"><h3 class="section-title">Sumber playlist</h3><div class="field"><label for="playlistUrl">URL M3U / M3U8 playlist</label><input id="playlistUrl" type="url" placeholder="https://example.com/playlist.m3u" autocomplete="url"></div><button class="primary" id="loadBtn" style="width:100%">Load playlist</button><p class="hint">URL playlist hanya digunakan dalam browser ini. Jika server menyekat CORS, cuba host playlist melalui sumber yang membenarkan akses browser.</p><div class="divider"></div><div class="field"><label for="epgUrl">URL EPG XMLTV (pilihan)</label><input id="epgUrl" type="url" placeholder="https://example.com/epg.xml"></div><button id="loadEpgBtn" style="width:100%">Load EPG</button><div class="divider"></div><div class="toolbar"><input id="search" type="search" placeholder="Cari channel…" aria-label="Cari channel"><select id="category" aria-label="Kategori"><option value="all">Semua kategori</option></select></div><div class="filters"><button class="active" data-filter="all">Semua</button><button data-filter="favorites">★ Favorites</button><button data-filter="recent">Baru dimainkan</button></div><div class="small" id="listCount">0 channel</div></section><section class="panel" style="margin-top:12px"><div id="channels" class="channels"><div class="emptylist">Playlist belum dimuatkan.<br>Masukkan URL M3U di atas.</div></div></section><p class="foot">Ghosflow Player · Mainkan hanya playlist dan stream yang anda berhak akses. HLS dan DASH disokong mengikut browser, CORS, codec dan kebenaran penyedia. Kandungan terlindung memerlukan konfigurasi DRM yang sah.</p></aside></main></div><div class="toast" id="toast"></div>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/shaka-player@5.2.12/dist/shaka-player.compiled.js"></script><script>
 (()=>{'use strict';const $=id=>document.getElementById(id);const video=$('video');let channels=[],filtered=[],hls=null,dashPlayer=null,current=null,filter='all',epgPrograms=[],epgChannels={},recent=[],playGeneration=0;let favorites=new Set();try{favorites=new Set(JSON.parse(localStorage.getItem('ghosflow-favs')||'[]'));recent=JSON.parse(localStorage.getItem('ghosflow-recent')||'[]')}catch{}
 const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.style.display='none',3000)};const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const attr=(s)=>String(s??'').replace(/["\\]/g,'');
-function parseM3U(text){const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/);const out=[];let meta=null;for(const raw of lines){const line=raw.trim();if(!line)continue;if(line.startsWith('#EXTINF:')){const comma=line.indexOf(',');const head=comma>=0?line.slice(0,comma):line;const name=comma>=0?line.slice(comma+1).trim():'Unnamed channel';const get=k=>{const re=new RegExp('(?:^|\\s)'+k+'="([^"]*)"','i');return (head.match(re)||[])[1]||''};meta={name:name||get('tvg-name')||'Unnamed channel',group:get('group-title')||'Uncategorised',logo:get('tvg-logo'),tvgId:get('tvg-id'),duration:(head.match(/^#EXTINF:\s*(-?\d+(?:\.\d+)?)/)||[])[1]||'-1'};}else if(!line.startsWith('#')&&meta){try{const url=new URL(line,$('playlistUrl').value||location.href).href;out.push({...meta,url,id:out.length});}catch{}meta=null;}}return out;}
+function parseM3U(text){
+  const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/);
+  const out=[];
+  let meta=null;
+
+  for(const raw of lines){
+    const line=raw.trim();
+    if(!line)continue;
+
+    if(line.startsWith('#EXTINF:')){
+      const comma=line.indexOf(',');
+      const head=comma>=0?line.slice(0,comma):line;
+      const name=comma>=0?line.slice(comma+1).trim():'Unnamed channel';
+      const get=k=>{const re=new RegExp('(?:^|\\s)'+k+'="([^"]*)"','i');return (head.match(re)||[])[1]||''};
+      meta={
+        name:name||get('tvg-name')||'Unnamed channel',
+        group:get('group-title')||'Uncategorised',
+        logo:get('tvg-logo'),
+        tvgId:get('tvg-id'),
+        duration:(head.match(/^#EXTINF:\s*(-?\d+(?:\.\d+)?)/)||[])[1]||'-1',
+        props:{},
+        hasLicenseKey:false,
+        hasVlcUserAgent:false
+      };
+      continue;
+    }
+
+    if(!meta)continue;
+
+    if(line.startsWith('#KODIPROP:')){
+      const prop=line.slice('#KODIPROP:'.length);
+      const splitAt=prop.indexOf('=');
+      if(splitAt>0){
+        const key=prop.slice(0,splitAt).trim().toLowerCase();
+        const value=prop.slice(splitAt+1).trim();
+        // Never retain a key value; only record whether the directive exists.
+        if(key==='inputstream.adaptive.license_key'){
+          meta.hasLicenseKey=Boolean(value);
+        }else if(key==='inputstream.adaptive.manifest_type'||key==='inputstream.adaptive.license_type'){
+          meta.props[key]=value;
+        }
+      }
+      continue;
+    }
+
+    if(line.startsWith('#EXTVLCOPT:')){
+      if(/^#EXTVLCOPT:http-user-agent=/i.test(line))meta.hasVlcUserAgent=true;
+      continue;
+    }
+
+    if(line.startsWith('#'))continue;
+
+    try{
+      const url=new URL(line,$('playlistUrl').value||location.href).href;
+      const manifestType=String(meta.props['inputstream.adaptive.manifest_type']||'').toLowerCase();
+      const drmType=String(meta.props['inputstream.adaptive.license_type']||'').trim();
+      const channel={
+        name:meta.name,
+        group:meta.group,
+        logo:meta.logo,
+        tvgId:meta.tvgId,
+        duration:meta.duration,
+        url,
+        id:out.length,
+        manifestType,
+        drmType,
+        hasLicenseKey:meta.hasLicenseKey,
+        hasVlcUserAgent:meta.hasVlcUserAgent,
+        isDash:manifestType==='dash'||/\.mpd($|[?#])/i.test(url),
+        drmProtected:Boolean(drmType||meta.hasLicenseKey)
+      };
+      out.push(channel);
+    }catch{}
+    meta=null;
+  }
+  return out;
+}
 function categories(){const sel=$('category'),old=sel.value;const groups=[...new Set(channels.map(c=>c.group||'Uncategorised'))].sort((a,b)=>a.localeCompare(b));sel.innerHTML='<option value="all">Semua kategori</option>'+groups.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');if(groups.includes(old))sel.value=old;}
-function render(){const q=$('search').value.trim().toLowerCase(),cat=$('category').value;filtered=channels.filter(c=>(cat==='all'||c.group===cat)&&(filter!=='favorites'||favorites.has(c.url))&&(filter!=='recent'||recent.includes(c.url))&&(!q||(c.name+' '+c.group+' '+c.tvgId).toLowerCase().includes(q)));$('listCount').textContent=`${filtered.length} / ${channels.length} channel`;const box=$('channels');if(!filtered.length){box.innerHTML='<div class="emptylist">Tiada channel sepadan.</div>';return;}box.innerHTML=filtered.map((c,i)=>`<div class="channel ${current&&current.url===c.url?'playing':''}" data-url="${esc(attr(c.url))}" role="button" tabindex="0"><span class="num">${c.logo?`<img src="${esc(attr(c.logo))}" alt="" style="width:30px;height:30px;object-fit:contain" onerror="this.remove()">`:String(i+1).padStart(2,'0')}</span><span class="meta"><span class="name">${esc(c.name)}</span><span class="group">${esc(c.group||'Uncategorised')}</span></span><button class="star" data-star="${esc(attr(c.url))}" aria-label="Toggle favorite">${favorites.has(c.url)?'★':'☆'}</button></div>`).join('');box.querySelectorAll('.channel').forEach(el=>{const play=()=>{const c=channels.find(x=>x.url===el.dataset.url);if(c)playChannel(c)};el.addEventListener('click',e=>{if(e.target.closest('[data-star]'))return;play()});el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();play()}})});box.querySelectorAll('[data-star]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const u=b.dataset.star;if(favorites.has(u))favorites.delete(u);else favorites.add(u);localStorage.setItem('ghosflow-favs',JSON.stringify([...favorites]));render()}));}
-async function loadPlaylist(){const url=$('playlistUrl').value.trim();if(!url){toast('Masukkan URL playlist dahulu.');return;}try{new URL(url)}catch{toast('URL tidak sah.');return;}$('loadBtn').classList.add('loading');$('status').textContent='Memuatkan playlist…';try{const r=await fetch(url);if(!r.ok)throw Error('HTTP '+r.status);const txt=await r.text();const parsed=parseM3U(txt);if(!parsed.length)throw Error('Tiada stream ditemui. Pastikan ini fail M3U yang mengandungi #EXTINF.');channels=parsed;categories();render();$('status').textContent=`${channels.length} channel dimuatkan`;$('placeholder').style.display='grid';toast('Playlist berjaya dimuatkan.');}catch(e){$('status').textContent='Gagal memuatkan playlist';toast('Tak dapat baca playlist: '+e.message+'. Semak URL/CORS.');}finally{$('loadBtn').classList.remove('loading')}}
+function render(){const q=$('search').value.trim().toLowerCase(),cat=$('category').value;filtered=channels.filter(c=>(cat==='all'||c.group===cat)&&(filter!=='favorites'||favorites.has(c.url))&&(filter!=='recent'||recent.includes(c.url))&&(!q||(c.name+' '+c.group+' '+c.tvgId).toLowerCase().includes(q)));$('listCount').textContent=`${filtered.length} / ${channels.length} channel`;const box=$('channels');if(!filtered.length){box.innerHTML='<div class="emptylist">Tiada channel sepadan.</div>';return;}box.innerHTML=filtered.map((c,i)=>`<div class="channel ${current&&current.url===c.url?'playing':''}" data-url="${esc(attr(c.url))}" role="button" tabindex="0"><span class="num">${c.logo?`<img src="${esc(attr(c.logo))}" alt="" style="width:30px;height:30px;object-fit:contain" onerror="this.remove()">`:String(i+1).padStart(2,'0')}</span><span class="meta"><span class="name">${esc(c.name)}</span><span class="group">${esc(c.group||'Uncategorised')}${c.isDash?' · DASH':''}${c.drmProtected?' · DRM':''}</span></span><button class="star" data-star="${esc(attr(c.url))}" aria-label="Toggle favorite">${favorites.has(c.url)?'★':'☆'}</button></div>`).join('');box.querySelectorAll('.channel').forEach(el=>{const play=()=>{const c=channels.find(x=>x.url===el.dataset.url);if(c)playChannel(c)};el.addEventListener('click',e=>{if(e.target.closest('[data-star]'))return;play()});el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();play()}})});box.querySelectorAll('[data-star]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const u=b.dataset.star;if(favorites.has(u))favorites.delete(u);else favorites.add(u);localStorage.setItem('ghosflow-favs',JSON.stringify([...favorites]));render()}));}
+function showPlaceholder(title,message){
+  $('placeholder').innerHTML=`<div><strong>${esc(title)}</strong>${esc(message)}</div>`;
+  $('placeholder').style.display='grid';
+}
+function setPlaybackInfo(message){
+  $('playbackInfo').textContent=message;
+}
+function dashErrorMessage(error,channel){
+  const detail=error?.detail||error||{};
+  const code=detail.code??error?.code??'unknown';
+  const category=detail.category??error?.category;
+  let dataText='';
+  try{dataText=JSON.stringify(detail.data??error?.data??'');}catch{}
+  const combined=`${String(detail.message||error?.message||'')} ${dataText}`.toLowerCase();
+  let reason='Shaka gagal memuatkan manifest atau media DASH. Semak Console dan tab Network untuk permintaan yang gagal.';
+
+  if(/403|forbidden/.test(combined)){
+    reason='HTTP 403: pelayan sumber menolak permintaan. Header CORS pada Worker redirect tidak boleh menggantikan kebenaran daripada pelayan akhir.';
+  }else if(/access-control-allow-origin|cors|cross-origin/.test(combined)){
+    reason='Kemungkinan CORS: respons manifest, segmen atau endpoint DRM tidak membenarkan origin player. Semak respons pada tab Network.';
+  }else if(/timed? ?out|timeout|net::err_failed|network/.test(combined)){
+    reason='Ralat rangkaian: permintaan manifest atau media gagal/timeout. Semak status HTTP, URL sasaran dan CORS pada tab Network.';
+  }else if(channel?.drmProtected){
+    reason='Playlist menandakan channel ini menggunakan DRM. Arahan #KODIPROP ialah metadata Kodi; ia bukan konfigurasi DRM web automatik. Playback web memerlukan konfigurasi dan akses DRM yang dibenarkan penyedia.';
+  }
+
+  const codeText=code==='unknown'?'':' (Shaka code '+String(code)+(category!==undefined?', category '+String(category):'')+')';
+  const drmNote=channel?.drmProtected && !/Playlist menandakan/.test(reason)
+    ? ' Channel ini turut ditandakan DRM dalam playlist; konfigurasi Kodi tidak digunakan secara automatik oleh browser.'
+    : '';
+  return reason+codeText+'.'+drmNote;
+}
+function describeChannel(c){
+  const parts=[];
+  parts.push(c.isDash?'Format: MPEG-DASH (.mpd).':(/\.m3u8($|[?#])/i.test(c.url)?'Format: HLS (.m3u8).':'Format: stream URL biasa; sokongan bergantung pada browser.'));
+  if(c.drmProtected){
+    const drmName=c.drmType||'jenis DRM tidak dikenal pasti';
+    parts.push(`Playlist menandakan perlindungan DRM (${drmName}${c.hasLicenseKey?'; arahan kunci wujud':''}). Player hanya mengesan arahan Kodi ini dan tidak membaca/menyimpan nilai kunci.`);
+    parts.push('Stream terlindung memerlukan konfigurasi DRM web dan kebenaran penyedia; jika permintaan menerima 403/CORS, Worker redirect tidak boleh membetulkan sekatan pelayan akhir.');
+  }
+  if(c.hasVlcUserAgent)parts.push('Playlist mempunyai arahan #EXTVLCOPT User-Agent; browser tidak menerapkannya secara automatik.');
+  return parts.join(' ');
+}
+
+async function loadPlaylist(){const url=$('playlistUrl').value.trim();if(!url){toast('Masukkan URL playlist dahulu.');return;}try{new URL(url)}catch{toast('URL tidak sah.');return;}$('loadBtn').classList.add('loading');$('status').textContent='Memuatkan playlist…';try{const r=await fetch(url);if(!r.ok)throw Error('HTTP '+r.status);const txt=await r.text();const parsed=parseM3U(txt);if(!parsed.length)throw Error('Tiada stream ditemui. Pastikan ini fail M3U yang mengandungi #EXTINF.');channels=parsed;categories();render();$('status').textContent=`${channels.length} channel dimuatkan`;showPlaceholder('Ready to stream?','Pilih channel daripada senarai untuk mula menonton.');toast('Playlist berjaya dimuatkan.');}catch(e){$('status').textContent='Gagal memuatkan playlist';toast('Tak dapat baca playlist: '+e.message+'. Semak URL/CORS.');}finally{$('loadBtn').classList.remove('loading')}}
 async function playChannel(c){
   current=c;
   const requestId=++playGeneration;
   $('placeholder').style.display='none';
   $('nowTitle').textContent=c.name;
   $('nowSub').textContent=c.group||'Uncategorised';
-  $('streamTag').textContent='LIVE';
+  $('streamTag').textContent=c.drmProtected?'DRM':'LIVE';
+  setPlaybackInfo(describeChannel(c));
+  $('status').textContent=c.isDash?'Memulakan DASH…':'Memulakan stream…';
 
   if(hls){hls.destroy();hls=null;}
   if(dashPlayer){
@@ -43,47 +165,74 @@ async function playChannel(c){
     hls.loadSource(c.url);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED,()=>{
-      if(requestId===playGeneration)video.play().catch(()=>toast('Tekan Play untuk mula stream.'));
+      if(requestId===playGeneration){
+        $('status').textContent='HLS sedia dimainkan';
+        video.play().catch(()=>toast('Tekan Play untuk mula stream.'));
+      }
     });
     hls.on(Hls.Events.ERROR,(_,d)=>{
-      if(d.fatal&&requestId===playGeneration)toast('HLS gagal dimainkan. Semak akses stream, CORS atau format.');
+      if(d.fatal&&requestId===playGeneration){
+        const msg='HLS gagal dimainkan. Semak status HTTP/CORS pada manifest dan segmen. Jika sumber menolak akses, player tidak boleh membetulkannya sendiri.';
+        setPlaybackInfo(msg);
+        $('status').textContent='Ralat HLS';
+        showPlaceholder('HLS gagal dimainkan',msg);
+        toast(msg);
+      }
     });
-  }else if(/\.mpd($|[?#])/i.test(c.url)){
+  }else if(c.isDash||/\.mpd($|[?#])/i.test(c.url)){
     if(!window.shaka){
-      toast('Enjin DASH tidak dapat dimuatkan. Semak sambungan internet/CDN.');
-      $('placeholder').style.display='grid';
-      return;
+      const msg='Enjin Shaka tidak dapat dimuatkan. Semak sambungan internet/CDN.';
+      setPlaybackInfo(msg);showPlaceholder('DASH tidak tersedia',msg);toast(msg);return;
     }
     shaka.polyfill.installAll();
     if(!shaka.Player.isBrowserSupported()){
-      toast('Browser ini tidak menyokong playback DASH yang diperlukan. Cuba Chrome atau Edge terkini.');
-      $('placeholder').style.display='grid';
-      return;
+      const msg='Browser ini tidak menyokong playback DASH yang diperlukan. Cuba Chrome atau Edge terkini.';
+      setPlaybackInfo(msg);showPlaceholder('DASH tidak disokong',msg);toast(msg);return;
     }
     const player=new shaka.Player();
     dashPlayer=player;
     player.addEventListener('error',event=>{
-      console.error('Shaka DASH playback error:',event.detail);
-      if(requestId===playGeneration){
-        toast('Ralat DASH. Semak CORS/akses stream; jika kandungan disulitkan, ia memerlukan kebenaran dan konfigurasi DRM rasmi.');
-      }
+      if(requestId!==playGeneration)return;
+      const detail=event?.detail||{};
+      // Keep diagnostics useful without printing request URLs or key material.
+      console.error('Shaka DASH error',{
+        severity:detail.severity,
+        category:detail.category,
+        code:detail.code
+      });
+      const msg=dashErrorMessage(detail,c);
+      setPlaybackInfo(msg);
+      $('status').textContent='Ralat DASH';
+      showPlaceholder('DASH gagal dimainkan',msg);
+      toast(msg);
     });
     try{
       await player.attach(video);
       await player.load(c.url);
       if(requestId!==playGeneration)return;
+      $('status').textContent='DASH dimuatkan';
+      setPlaybackInfo(describeChannel(c)+' Manifest berjaya dimuatkan; jika video tidak bermula, semak ralat rangkaian/DRM di bawah.');
       video.play().catch(()=>toast('DASH dimuatkan. Tekan Play untuk mula.'));
     }catch(error){
-      console.error('DASH load failed:',error);
       if(requestId===playGeneration){
-        toast('DASH tidak dapat dimuatkan. Semak CORS, rangkaian, codec dan akses penyedia. Stream terlindung memerlukan konfigurasi DRM yang dibenarkan.');
-        $('placeholder').style.display='grid';
+        const msg=dashErrorMessage(error,c);
+        console.error('DASH load failed',{
+          code:error?.code??error?.detail?.code,
+          category:error?.category??error?.detail?.category
+        });
+        setPlaybackInfo(msg);
+        $('status').textContent='Ralat DASH';
+        showPlaceholder('DASH gagal dimainkan',msg);
+        toast(msg);
       }
       return;
     }
   }else{
     video.src=c.url;
-    video.play().catch(()=>toast('Tekan Play untuk mula. Format atau akses stream mungkin tidak disokong.'));
+    video.play().then(()=>{$('status').textContent='Stream dimainkan';}).catch(()=>{
+      const msg='Browser tidak dapat memulakan stream. Format, codec, akses atau CORS sumber mungkin tidak disokong.';
+      setPlaybackInfo(msg);showPlaceholder('Stream gagal dimainkan',msg);toast(msg);
+    });
   }
 
   recent=[c.url,...recent.filter(u=>u!==c.url)].slice(0,30);
@@ -95,6 +244,6 @@ function parseXmltv(xml){const doc=new DOMParser().parseFromString(xml,'applicat
 function parseXmlDate(s){if(!s)return null;const m=s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?\s*([+-]\d{4}|Z)?/);if(!m)return null;const iso=`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]||'00'}${m[7]==='Z'?'Z':m[7]?m[7].slice(0,3)+':'+m[7].slice(3):'Z'}`;const d=new Date(iso);return Number.isNaN(+d)?null:d;}
 async function loadEpg(){const url=$('epgUrl').value.trim();if(!url){toast('Masukkan URL EPG XMLTV dahulu.');return}try{const r=await fetch(url);if(!r.ok)throw Error('HTTP '+r.status);parseXmltv(await r.text());toast(`EPG dimuatkan: ${epgPrograms.length} program.`)}catch(e){toast('Gagal memuatkan EPG: '+e.message+'. Semak URL/CORS.')}}
 function renderEpg(){const box=$('epgContent');if(!current){box.textContent='Pilih channel untuk melihat jadual rancangan.';return}if(!epgPrograms.length){box.textContent='EPG belum dimuatkan. Masukkan URL XMLTV di atas.';return}const now=new Date();let ids=[current.tvgId].filter(Boolean);if(!ids.length){const name=current.name.toLowerCase();ids=Object.keys(epgChannels).filter(id=>epgChannels[id].toLowerCase()===name)}let matches=epgPrograms.filter(p=>(ids.includes(p.channel)||(!ids.length&&epgChannels[p.channel]?.toLowerCase()===current.name.toLowerCase()))&&p.stop>now).sort((a,b)=>a.start-b.start).slice(0,6);if(!matches.length){box.innerHTML='<span class="small">Tiada padanan EPG untuk channel ini. Semak atribut tvg-id dalam playlist.</span>';return}box.innerHTML=matches.map(p=>`<div class="program"><span class="time">${p.start.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} – ${p.stop.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span><div><strong>${esc(p.title)}</strong>${p.desc?`<p>${esc(p.desc)}</p>`:''}</div></div>`).join('')}
-$('loadBtn').addEventListener('click',loadPlaylist);$('loadEpgBtn').addEventListener('click',loadEpg);$('search').addEventListener('input',render);$('category').addEventListener('change',render);document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));render()}));$('playBtn').addEventListener('click',()=>{if(!current){toast('Pilih channel dahulu.');return}video.play().catch(()=>toast('Tekan Play pada video untuk mula.'))});$('stopBtn').addEventListener('click',async()=>{playGeneration++;video.pause();if(hls){hls.destroy();hls=null}if(dashPlayer){const oldPlayer=dashPlayer;dashPlayer=null;try{await oldPlayer.destroy()}catch{}}video.removeAttribute('src');video.load();$('placeholder').style.display='grid';$('streamTag').textContent='STOPPED'});$('fullBtn').addEventListener('click',async()=>{const target=$('screen');try{if(document.fullscreenElement)await document.exitFullscreen();else if(target.requestFullscreen)await target.requestFullscreen();else if(video.webkitEnterFullscreen)video.webkitEnterFullscreen();}catch{toast('Fullscreen tidak tersedia pada browser ini.')}});video.addEventListener('error',()=>{if(current)toast('Ralat media. Stream mungkin tamat, disekat atau codec tidak disokong.')});$('playlistUrl').addEventListener('keydown',e=>{if(e.key==='Enter')loadPlaylist()});$('epgUrl').addEventListener('keydown',e=>{if(e.key==='Enter')loadEpg()});if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+$('loadBtn').addEventListener('click',loadPlaylist);$('loadEpgBtn').addEventListener('click',loadEpg);$('search').addEventListener('input',render);$('category').addEventListener('change',render);document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));render()}));$('playBtn').addEventListener('click',()=>{if(!current){toast('Pilih channel dahulu.');return}video.play().catch(()=>toast('Tekan Play pada video untuk mula.'))});$('stopBtn').addEventListener('click',async()=>{playGeneration++;video.pause();if(hls){hls.destroy();hls=null}if(dashPlayer){const oldPlayer=dashPlayer;dashPlayer=null;try{await oldPlayer.destroy()}catch{}}video.removeAttribute('src');video.load();showPlaceholder('Playback dihentikan','Pilih channel daripada senarai untuk mula menonton.');setPlaybackInfo('Playback dihentikan.');$('status').textContent='Berhenti';$('streamTag').textContent='STOPPED'});$('fullBtn').addEventListener('click',async()=>{const target=$('screen');try{if(document.fullscreenElement)await document.exitFullscreen();else if(target.requestFullscreen)await target.requestFullscreen();else if(video.webkitEnterFullscreen)video.webkitEnterFullscreen();}catch{toast('Fullscreen tidak tersedia pada browser ini.')}});video.addEventListener('error',()=>{if(current)toast('Ralat media. Stream mungkin tamat, disekat atau codec tidak disokong.')});$('playlistUrl').addEventListener('keydown',e=>{if(e.key==='Enter')loadPlaylist()});$('epgUrl').addEventListener('keydown',e=>{if(e.key==='Enter')loadEpg()});if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
 </script></body></html>

@@ -1,29 +1,25 @@
-# Ghosflow M3U Player — DASH update
+# Ghosflow M3U Player — Playback Diagnostics
 
-## Apa yang berubah
-- Mengekalkan UI dan ciri asal: import URL M3U/M3U8, kategori, carian, favorites, recently played, EPG XMLTV, fullscreen, dan PWA.
-- Menambah enjin Shaka Player untuk MPEG-DASH `.mpd` yang disokong, sambil mengekalkan hls.js untuk HLS.
-- Memperbaharui cache service worker supaya browser mendapatkan versi baharu.
+## Perubahan versi ini
+- Kekalkan import playlist M3U, kategori, carian, favorites, recently played, EPG XMLTV, fullscreen dan PWA.
+- Kekalkan hls.js untuk HLS dan Shaka Player untuk DASH.
+- Baca metadata `#KODIPROP` yang berkaitan dengan manifest dan jenis DRM untuk menandakan channel; nilai `license_key` tidak disimpan dalam metadata parsed, dipaparkan, atau dimasukkan ke konfigurasi player.
+- Paparkan label DASH/DRM serta diagnostik yang membezakan kemungkinan HTTP 403, CORS, rangkaian dan konfigurasi DRM yang diperlukan.
+- Naikkan cache Service Worker kepada `ghosflow-player-v3-diagnostics`.
 
-## Deploy
+## Deploy ke GitHub Pages
 1. Extract ZIP.
-2. Upload/gantikan `index.html`, `manifest.webmanifest`, `sw.js`, dan `README.md` di root GitHub Pages repository.
-3. Commit changes dan tunggu GitHub Pages deploy.
-4. Di browser, lakukan hard refresh (`Ctrl+F5`). Jika app pernah dipasang, tutup/buka semula app selepas service worker dikemas kini.
+2. Upload/gantikan `index.html`, `manifest.webmanifest`, `sw.js`, dan `README.md` di root repository.
+3. Commit changes dan tunggu GitHub Pages selesai deploy.
+4. Buka semula laman dan tekan `Ctrl+F5`. Jika masih paparan lama, Chrome DevTools → Application → Service Workers → Unregister; kemudian Storage → Clear site data dan reload.
 
-## Nota playback
-- Shaka Player dimuatkan daripada CDN jsDelivr (`shaka-player@5.2.12`). Sambungan internet diperlukan untuk mengambil library ini.
-- DASH biasa/clear boleh dimainkan jika manifest, segmen, codec dan CORS dibenarkan oleh penyedia.
-- Fail ini tidak memasukkan atau mengkonfigurasi kunci ClearKey, tidak mengabaikan DRM, dan tidak memintas sekatan penyedia. Kandungan yang disulitkan memerlukan hak akses serta kaedah DRM/lesen yang dibenarkan oleh penyedia.
-- Mengaktifkan Shaka tidak boleh mengatasi CORS, token tamat tempoh, had peranti atau sekatan rangkaian penyedia.
-- URL playlist dan kandungan yang dihantar ke browser boleh diperiksa oleh pengguna yang mengaksesnya; jangan simpan rahsia atau kunci dalam kod frontend awam.
+## Had playback
+- Shaka Player dimuatkan daripada CDN jsDelivr (`shaka-player@5.2.12`); sambungan internet diperlukan.
+- Pengesanan `#KODIPROP` hanya untuk diagnostik. Arahan Kodi bukan konfigurasi DRM automatik untuk browser.
+- Kandungan DASH terlindung memerlukan konfigurasi DRM/lesen web yang sah serta kebenaran penyedia. Projek ini tidak memasukkan kunci DRM, tidak memintas DRM dan tidak mengatasi sekatan akses penyedia.
+- Jika manifest/segmen/endpoint lesen memulangkan HTTP 403 atau tidak memberikan CORS yang diperlukan, player akan melaporkan kemungkinan puncanya; CORS pada Worker redirect tidak menggantikan kebenaran daripada pelayan akhir.
+- URL playlist dan kandungan yang dihantar kepada browser boleh diperiksa pengguna yang mengaksesnya. Jangan letak token rahsia atau kunci DRM dalam frontend awam.
 
-## Sumber
-- Shaka Player documentation: https://shaka-player.github.io/shaka-player/docs/api/tutorial-basic-usage.html
-- Shaka Player releases: https://github.com/shaka-project/shaka-player/releases
-
-
-## Kemas kini versi DASH / cache
-- Versi ini menaikkan cache Service Worker kepada `ghosflow-player-v2` supaya browser menggantikan fail HTML lama yang mungkin masih tersimpan.
-- Selepas upload semua fail ke root repository dan commit, buka laman semula. Jika masih versi lama, Chrome DevTools > Application > Service Workers > Unregister, kemudian Storage > Clear site data, dan reload laman.
-- Sokongan DASH tidak automatik membuka kandungan yang dilindungi DRM; ia memerlukan konfigurasi lesen/kunci yang dibenarkan oleh penyedia.
+## Sumber teknikal
+- Shaka Player: https://shaka-player.github.io/shaka-player/docs/api/tutorial-basic-usage.html
+- Shaka Player error model: https://shaka-player-demo.appspot.com/docs/api/shaka.util.Error.html
