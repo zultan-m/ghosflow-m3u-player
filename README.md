@@ -1,19 +1,23 @@
-# Ghosflow M3U Player
+# Ghosflow M3U Player — DASH update
 
-Aplikasi web ringan untuk memuat URL playlist M3U/M3U8, memainkan stream, kategori, carian, favorites, recent channels, fullscreen dan EPG XMLTV.
+## Apa yang berubah
+- Mengekalkan UI dan ciri asal: import URL M3U/M3U8, kategori, carian, favorites, recently played, EPG XMLTV, fullscreen, dan PWA.
+- Menambah enjin Shaka Player untuk MPEG-DASH `.mpd` yang disokong, sambil mengekalkan hls.js untuk HLS.
+- Memperbaharui cache service worker supaya browser mendapatkan versi baharu.
 
-## Cara guna
-1. Extract folder ini.
-2. Host kandungan folder pada hosting HTTPS yang menyokong static files (contohnya GitHub Pages, Cloudflare Pages atau hosting sendiri).
-3. Buka URL laman, tampal URL playlist `.m3u` / `.m3u8`, tekan **Load playlist**.
-4. Untuk EPG, masukkan URL XMLTV `.xml` dan tekan **Load EPG**.
-5. Pada Android, buka URL HTTPS dalam Chrome dan pilih menu **Install app** / **Add to Home screen**.
+## Deploy
+1. Extract ZIP.
+2. Upload/gantikan `index.html`, `manifest.webmanifest`, `sw.js`, dan `README.md` di root GitHub Pages repository.
+3. Commit changes dan tunggu GitHub Pages deploy.
+4. Di browser, lakukan hard refresh (`Ctrl+F5`). Jika app pernah dipasang, tutup/buka semula app selepas service worker dikemas kini.
 
-## Penting
-- Disebabkan sekatan browser (CORS), URL playlist dan XMLTV perlu membenarkan fetch dari origin laman ini. Jika tidak, gunakan sumber yang menyokong CORS atau backend/proxy yang anda kawal dan dibenarkan oleh penyedia.
-- HLS menggunakan hls.js daripada CDN; Safari/iOS boleh memainkan HLS native jika URL `.m3u8` disokong. Format lain bergantung pada browser/codec.
-- EPG menggunakan XMLTV. Untuk padanan terbaik, playlist perlu mempunyai atribut `tvg-id` yang sepadan dengan ID channel dalam XMLTV.
-- Favorites dan recent channels disimpan secara setempat pada browser melalui localStorage. URL playlist tidak disimpan secara automatik.
-- PWA perlu dihidangkan melalui HTTPS (atau localhost) untuk pemasangan dan service worker.
-- Untuk membungkus sebagai APK Android sebenar, gunakan Capacitor atau WebView wrapper selepas deploy. Projek ini sendiri ialah web/PWA, bukan fail APK siap pasang.
-- Gunakan hanya playlist dan stream yang anda berhak akses.
+## Nota playback
+- Shaka Player dimuatkan daripada CDN jsDelivr (`shaka-player@5.2.12`). Sambungan internet diperlukan untuk mengambil library ini.
+- DASH biasa/clear boleh dimainkan jika manifest, segmen, codec dan CORS dibenarkan oleh penyedia.
+- Fail ini tidak memasukkan atau mengkonfigurasi kunci ClearKey, tidak mengabaikan DRM, dan tidak memintas sekatan penyedia. Kandungan yang disulitkan memerlukan hak akses serta kaedah DRM/lesen yang dibenarkan oleh penyedia.
+- Mengaktifkan Shaka tidak boleh mengatasi CORS, token tamat tempoh, had peranti atau sekatan rangkaian penyedia.
+- URL playlist dan kandungan yang dihantar ke browser boleh diperiksa oleh pengguna yang mengaksesnya; jangan simpan rahsia atau kunci dalam kod frontend awam.
+
+## Sumber
+- Shaka Player documentation: https://shaka-player.github.io/shaka-player/docs/api/tutorial-basic-usage.html
+- Shaka Player releases: https://github.com/shaka-project/shaka-player/releases
